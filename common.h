@@ -1,0 +1,7 @@
+#ifndef SIK_CZAT_COMMON_H
+#define SIK_CZAT_COMMON_H
+
+#define PORT_DEFAULT 20160
+
+
+#endif //SIK_CZAT_COMMON_H
