@@ -12,7 +12,7 @@ void fail_aux(const char *line_text, int line_number, const char *file_name, con
 {
     //fprintf(stderr, "Error at line #%d in file %s\n%s\n%s\n", line_number, file_name, line_text, emsg);
     //perror(NULL);
-    die(false, emsg);
+    die(1, emsg);
 }
 
 void *safe_malloc(size_t bytes)
