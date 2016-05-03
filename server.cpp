@@ -28,6 +28,7 @@ void main_loop();
 
 
 /** *** *** *** *** *** DATA SECTION *** *** *** *** *** **/
+//@todo rewrite to send one, packed structure
 
 
 struct MessageBuffer
@@ -137,21 +138,40 @@ void parse_arguments(int argc, char **argv)
     log("Arguments parsed\n");
 }
 
-//socket
+/*
+
 void set_up_listener()
 {
     struct addrinfo hints, *result;
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET; //ipv4 wow wow
     hints.ai_socktype = SOCK_STREAM; //tcp so reliable wow
-    hints.ai_addr = (sockaddr*) safe_malloc(sizeof(sockaddr));
-    ((sockaddr_in*) hints.ai_addr)->sin_addr.s_addr = htonl(INADDR_ANY); //remove it to listen on localhost only
 
     getaddrinfo(NULL, server_port_str, &hints, &result);
+
     negative_is_bad(client[0].fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol),
               "unable to get listen socket");
     negative_is_bad(bind(client[0].fd, result->ai_addr, result->ai_addrlen), "unable to bind listen socket");
     negative_is_bad(listen(client[0].fd, MAX_PENDING_CLIENTS), "unable to listen on listen socket");
+    freeaddrinfo(result);
+    log("Server is now up on port %hu\n", server_port);
+}
+
+*/
+
+void set_up_listener()
+{
+    struct sockaddr_in server;
+
+
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = htonl(INADDR_ANY);
+    server.sin_port = htons(server_port);
+
+    negative_is_bad(client[0].fd = socket(PF_INET, SOCK_STREAM, 0), "unable to get listen socket");
+    negative_is_bad(bind(client[0].fd, (struct sockaddr*)&server, (socklen_t)sizeof(server)), "unable to bind listen socket");
+    negative_is_bad(listen(client[0].fd, MAX_PENDING_CLIENTS), "unable to listen on listen socket");
+
     log("Server is now up on port %hu\n", server_port);
 }
 
