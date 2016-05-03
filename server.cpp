@@ -144,6 +144,7 @@ void set_up_listener()
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET; //ipv4 wow wow
     hints.ai_socktype = SOCK_STREAM; //tcp so reliable wow
+    hints.ai_addr = (sockaddr*) safe_malloc(sizeof(sockaddr));
     ((sockaddr_in*) hints.ai_addr)->sin_addr.s_addr = htonl(INADDR_ANY); //remove it to listen on localhost only
 
     getaddrinfo(NULL, server_port_str, &hints, &result);
