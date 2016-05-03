@@ -14,7 +14,7 @@
 #define log printf
 
 void clear_client(int id);
-void die(bool success, const char *reason);
+void die(int code, const char *reason);
 void init_globals();
 void parse_arguments(int argc, char **argv);
 void set_up_listener();
