@@ -12,7 +12,6 @@
 #define MAX_CLIENTS 20
 #define MAX_PENDING_CLIENTS 10
 #define log printf
-#define DEBUG false
 
 void clear_client(int id);
 void die(bool success, const char *reason);
@@ -107,11 +106,6 @@ ssize_t safe_single_read(int fd, void *buf, size_t cnt, int who)
 void init_globals()
 {
     server_port = PORT_DEFAULT;
-    if(DEBUG)
-    {
-        srand((unsigned int) time(NULL));
-        server_port = (unsigned short) (rand()%62000 + 1015);
-    }
     for(int i = 0; i <= MAX_CLIENTS; i++)
     {
         client[i].fd = -1;
@@ -150,6 +144,7 @@ void set_up_listener()
     memset(&hints, 0, sizeof hints);
     hints.ai_family = AF_INET; //ipv4 wow wow
     hints.ai_socktype = SOCK_STREAM; //tcp so reliable wow
+    ((sockaddr_in*) hints.ai_addr)->sin_addr.s_addr = htonl(INADDR_ANY); //remove it to listen on localhost only
 
     getaddrinfo(NULL, server_port_str, &hints, &result);
     negative_is_bad(client[0].fd = socket(result->ai_family, result->ai_socktype, result->ai_protocol),

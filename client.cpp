@@ -9,7 +9,7 @@
 #include "common.h"
 
 #define PORT_DEFAULT 20160
-#define log ignore
+#define log printf
 
 
 void die(bool, const char *);
@@ -69,6 +69,8 @@ void set_up()
 
     zero_is_ok(rv = getaddrinfo(server_host_str, server_port_str, &addr_hints, &addr_result), gai_strerror(rv));
 
+    log("Connecting to %s\n", server_host_str);
+
     negative_is_bad(connect(descriptors[0].fd, addr_result->ai_addr, addr_result->ai_addrlen),
                     "cannot connect to the server");
     freeaddrinfo(addr_result);
@@ -98,7 +100,7 @@ void handle_server_message()
 {
     short length;
     safe_all_read(descriptors[0].fd, (char*) &length, 2); //len
-    //@todo server also can send one byte and hang client, but it is acceptable to wait forever for second byte
+    //server also can send one byte and hang client, but it is acceptable to wait forever for second byte
     length = ntohs((uint16_t) length);
 
     log("Received message length %d\n", length);
