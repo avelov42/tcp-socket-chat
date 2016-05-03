@@ -10,8 +10,8 @@ extern void die(bool, const char *);
 
 void fail_aux(const char *line_text, int line_number, const char *file_name, const char *emsg)
 {
-    fprintf(stderr, "Error at line #%d in file %s\n%s\n%s\n", line_number, file_name, line_text, emsg);
-    perror(NULL);
+    //fprintf(stderr, "Error at line #%d in file %s\n%s\n%s\n", line_number, file_name, line_text, emsg);
+    //perror(NULL);
     die(false, emsg);
 }
 
@@ -47,17 +47,6 @@ void safe_all_write(int fd, char *buffer, size_t len)
     {
         negative_is_bad(write_rv = write(fd, buffer + written, len - written), "send error");
         written += write_rv;
-    }
-}
-
-void safe_all_read(int fd, char* buffer, size_t len)
-{
-    ssize_t read_rv;
-    size_t read_ed = 0;
-    while(read_ed < len)
-    {
-        negative_is_bad(read_rv = read(fd, buffer + read_ed, len - read_ed), "read error");
-        read_ed += read_rv;
     }
 }
 

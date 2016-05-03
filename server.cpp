@@ -15,29 +15,18 @@
 
 void clear_client(int id);
 void die(bool success, const char *reason);
-void* safe_malloc(size_t bytes);
-ssize_t safe_single_read(int fd, void *buf, size_t count, int who);
 void init_globals();
 void parse_arguments(int argc, char **argv);
 void set_up_listener();
-int get_unused_client_socket();
 void accept_client();
 void send_message(int from, int to);
 void handle_client(int id);
 void main_loop();
-
+void* safe_malloc(size_t bytes);
+int get_unused_client_socket();
+ssize_t safe_single_read(int fd, void *buf, size_t count, int who);
 
 /** *** *** *** *** *** DATA SECTION *** *** *** *** *** **/
-//@todo rewrite to send one, packed structure
-
-
-struct MessageBuffer
-{
-    bool rcvd_only_first_byte;
-    short to_receive; //-1 means we didnt started receiving
-    unsigned short received;
-    char* data;
-};
 
 unsigned short server_port;
 char *server_port_str;

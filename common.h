@@ -16,5 +16,13 @@ void ignore(const char* fmt, ...);
 #define negative_is_bad(fun, emsg) ((fun) < 0) ? fail_aux(#fun, __LINE__, __FILE__, emsg) : (void) 0
 #define zero_is_ok(fun, emsg) ((fun) != 0) ? fail_aux(#fun, __LINE__, __FILE__, emsg) : (void) 0
 
+struct MessageBuffer
+{
+    bool rcvd_only_first_byte;
+    short to_receive; //-1 means we didnt started receiving
+    unsigned short received;
+    char* data;
+};
+
 
 #endif

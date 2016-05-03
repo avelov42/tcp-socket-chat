@@ -9,8 +9,6 @@
 #include "common.h"
 
 #define PORT_DEFAULT 20160
-#define log printf
-
 
 void die(bool, const char *);
 
@@ -20,8 +18,12 @@ void die(bool, const char *);
 bool should_quit;
 char *server_port_str;
 char *server_host_str;
-char buffer[2 + MAX_MESSAGE_LENGTH + 1]; //+1 for trailing zero
 struct pollfd descriptors[2]; //0 - server socket, 1 - stdin
+
+char stdin_buffer[MAX_MESSAGE_LENGTH + 1]; //+1 cuz fgets add \0 at the end
+
+MessageBuffer socket_buffer;
+
 
 /** *** *** **** *** *** CLIENT LOGIC SECTION *** *** *** *** *** **/
 
@@ -40,8 +42,6 @@ void parse_arguments(int argc, char **argv)
     }
     else
         die(false, "invalid number of arguments");
-
-    log("Arguments parsed\n");
 }
 
 void init_globals()
@@ -51,6 +51,11 @@ void init_globals()
     descriptors[1].events = POLLIN; //dont bother with stdin errors
     descriptors[0].fd = -1;
     descriptors[1].fd = STDIN_FILENO;
+
+    socket_buffer.to_receive = -1;
+    socket_buffer.received = 0;
+    socket_buffer.rcvd_only_first_byte = false;
+    socket_buffer.data = (char *) safe_malloc(sizeof(char) * MAX_MESSAGE_LENGTH);
 
 }
 
@@ -69,67 +74,91 @@ void set_up()
 
     zero_is_ok(rv = getaddrinfo(server_host_str, server_port_str, &addr_hints, &addr_result), gai_strerror(rv));
 
-    log("Connecting to %s\n", server_host_str);
-
     negative_is_bad(connect(descriptors[0].fd, addr_result->ai_addr, addr_result->ai_addrlen),
                     "cannot connect to the server");
     freeaddrinfo(addr_result);
-
-    log("Client connected with server\n");
 }
 
 //todo write send message(buf, dsc)
 
 void handle_stdin()
 {
-    short text_len;
-    short net_text_len;
+    short length, net_length;
+    fgets(stdin_buffer, MAX_MESSAGE_LENGTH, stdin); //message.data i 0-ended
+    length = (short) strlen(stdin_buffer);
+    net_length = htons((uint16_t) length);
+    safe_all_write(descriptors[0].fd, (char *) &net_length, sizeof(short)); //all writes end quickly!
+    safe_all_write(descriptors[0].fd, stdin_buffer, (size_t) length);
+}
 
-    fgets(buffer + 2, MAX_MESSAGE_LENGTH, stdin);
-    text_len = (short) (strnlen(buffer + 2, MAX_MESSAGE_LENGTH));
-    net_text_len = htons((uint16_t) text_len);
-    memcpy(buffer, &net_text_len, 2);
-
-    log("Read %d-len message\n", text_len);
-
-    safe_all_write(descriptors[0].fd, buffer, (size_t) text_len + 2);
-    log("Message sent to server\n");
+ssize_t safe_single_read(int fd, void *buf, size_t cnt)
+{
+    ssize_t read_rv;
+    negative_is_bad(read_rv = read(fd, buf, cnt), "read failure");
+    if(read_rv == 0)
+        die(false, "server disconnected");
+    return read_rv;
 }
 
 void handle_server_message()
 {
-    short length;
-    safe_all_read(descriptors[0].fd, (char*) &length, 2); //len
-    //server also can send one byte and hang client, but it is acceptable to wait forever for second byte
-    length = ntohs((uint16_t) length);
-
-    log("Received message length %d\n", length);
-    if(!(0 < length && length <= MAX_MESSAGE_LENGTH))
-        die(false, "message size");
-
-    safe_all_read(descriptors[0].fd, buffer, (size_t) length);
-    log("Received message text: ");
-    printf("%.*s", length, buffer);
+    if(descriptors[0].revents & POLLERR)
+        die(false, "poll error");
+    else if(descriptors[0].revents & POLLHUP)
+        die(true, "server disconnected");
+    else if(descriptors[0].revents & POLLIN)
+    {
+        ssize_t read_rv;
+        if(socket_buffer.rcvd_only_first_byte)
+        {
+            read_rv = safe_single_read(descriptors[0].fd, (char *) &(socket_buffer.to_receive) + 1,
+                                       1); //rcv second half to_receive
+            assert(read_rv == 1);
+            socket_buffer.rcvd_only_first_byte = false;
+            socket_buffer.to_receive = ntohs((uint16_t) socket_buffer.to_receive);
+            if(!(0 < socket_buffer.to_receive && socket_buffer.to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
+                die(false, "message size");
+        }
+        else if(socket_buffer.to_receive == -1) //waiting for message length (new message)
+        {
+            read_rv = safe_single_read(descriptors[0].fd, &(socket_buffer.to_receive), 2);
+            if(read_rv == 1) //received only first byte of length
+                socket_buffer.rcvd_only_first_byte = true;
+            else
+            {
+                socket_buffer.to_receive = ntohs((uint16_t) socket_buffer.to_receive);
+                if(!(0 < socket_buffer.to_receive && socket_buffer.to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
+                    die(false, "message size");
+            }
+        }
+        else //receiving next part of message
+        {
+            read_rv = safe_single_read(descriptors[0].fd, socket_buffer.data + socket_buffer.received,
+                                       (size_t) socket_buffer.to_receive);
+            socket_buffer.received += read_rv;
+            if(socket_buffer.to_receive == socket_buffer.received)
+            {
+                printf("%.*s", socket_buffer.to_receive, socket_buffer.data);
+                socket_buffer.to_receive = -1;
+                socket_buffer.received = 0;
+            }
+        }
+    }
 
 }
 
 void main_loop()
 {
-    int poll_value;
     while(!should_quit)
     {
         //clear revents
         descriptors[0].revents = 0;
         descriptors[1].revents = 0;
 
-
-        log("Awaiting for input/data\n");
-        negative_is_bad(poll_value = poll(descriptors, 2, -1), "pool failure");
-        if(poll_value == 0) continue;
-        assert(poll_value > 0); //check if pool is not for ever
+        negative_is_bad(poll(descriptors, 2, -1), "pool failure");
 
         if(descriptors[0].revents & (POLLIN | POLLERR | POLLHUP))
-                handle_server_message();
+            handle_server_message();
         if(descriptors[1].revents & (POLLIN))
             handle_stdin();
     }
@@ -161,7 +190,8 @@ void die(bool success, const char *reason)
     if(descriptors[0].fd != -1)
         negative_is_bad(close(descriptors[0].fd), "could not close socket");
 
-
+    if(strcmp(reason, "message size") == 0)
+        exit(100);
     exit(success ? EXIT_SUCCESS : EXIT_FAILURE);
 
 
