@@ -10,7 +10,7 @@
 
 #define PORT_DEFAULT 20160
 
-void die(bool, const char *);
+void die(int, const char *);
 
 /** *** *** *** *** *** DATA SECTION *** *** *** *** *** **/
 
@@ -41,7 +41,7 @@ void parse_arguments(int argc, char **argv)
             sprintf(server_port_str, "%d", PORT_DEFAULT);
     }
     else
-        die(false, "invalid number of arguments");
+        die(1, "invalid number of arguments");
 }
 
 void init_globals()
@@ -96,16 +96,16 @@ ssize_t safe_single_read(int fd, void *buf, size_t cnt)
     ssize_t read_rv;
     negative_is_bad(read_rv = read(fd, buf, cnt), "read failure");
     if(read_rv == 0)
-        die(false, "server disconnected");
+        die(100, "server disconnected");
     return read_rv;
 }
 
 void handle_server_message()
 {
     if(descriptors[0].revents & POLLERR)
-        die(false, "poll error");
+        die(100, "poll error");
     else if(descriptors[0].revents & POLLHUP)
-        die(true, "server disconnected");
+        die(100, "server disconnected");
     else if(descriptors[0].revents & POLLIN)
     {
         ssize_t read_rv;
@@ -117,7 +117,7 @@ void handle_server_message()
             socket_buffer.rcvd_only_first_byte = false;
             socket_buffer.to_receive = ntohs((uint16_t) socket_buffer.to_receive);
             if(!(0 < socket_buffer.to_receive && socket_buffer.to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
-                die(false, "message size");
+                die(100, "message size");
         }
         else if(socket_buffer.to_receive == -1) //waiting for message length (new message)
         {
@@ -128,7 +128,7 @@ void handle_server_message()
             {
                 socket_buffer.to_receive = ntohs((uint16_t) socket_buffer.to_receive);
                 if(!(0 < socket_buffer.to_receive && socket_buffer.to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
-                    die(false, "message size");
+                    die(100, "message size");
             }
         }
         else //receiving next part of message
@@ -171,16 +171,16 @@ int main(int argc, char **argv)
     parse_arguments(argc, argv);
     set_up();
     main_loop();
-    die(true, NULL);
+    die(0, NULL);
 
 }
 
-void die(bool success, const char *reason)
+void die(int code, const char *reason)
 {
     static bool been_here = false;
     if(been_here) fatal("OS failure");
     been_here = true;
-    printf("Client is turning off: %s\n", success ? "successfully" : reason);
+    printf("Client is turning off: %s\n", code == 0 ? "successfully" : reason);
 
     if(server_port_str != NULL)
         free(server_port_str);
@@ -190,9 +190,7 @@ void die(bool success, const char *reason)
     if(descriptors[0].fd != -1)
         negative_is_bad(close(descriptors[0].fd), "could not close socket");
 
-    if(strcmp(reason, "message size") == 0)
-        exit(100);
-    exit(success ? EXIT_SUCCESS : EXIT_FAILURE);
+    exit(code);
 
 
 }

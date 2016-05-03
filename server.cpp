@@ -118,9 +118,9 @@ void init_globals()
 void parse_arguments(int argc, char **argv)
 {
     if(argc == 2 && sscanf(argv[1], "%hu", &server_port) != 1) //port 22 is ok for me
-        die(false, "invalid server port number");
+        die(1, "invalid server port number");
     if(argc > 2)
-        die(false, "invalid number of arguments");
+        die(1, "invalid number of arguments");
 
     server_port_str = (char*) safe_malloc(sizeof(char) * 8);
     sprintf(server_port_str, "%hu", server_port);
@@ -272,18 +272,18 @@ int main(int argc, char **argv)
     parse_arguments(argc, argv);
     set_up_listener();
     main_loop();
-    die(true, NULL);
+    die(0, NULL);
 
     return 0;
 }
 
 
-void die(bool success, const char* reason)
+void die(int code, const char* reason)
 {
     static bool been_here = false;
     if(been_here) fatal("OS failure");
     been_here = true;
-    printf("Server is turning off: %s\n", success ? "successfully" : reason);
+    printf("Server is turning off: %s\n", code == 0 ? "successfully" : reason);
     for(int i = 0; i <= MAX_CLIENTS; i++)
         if(client[i].fd >= 0)
             clear_client(i);
@@ -295,5 +295,5 @@ void die(bool success, const char* reason)
     if(server_port_str != NULL)
         free(server_port_str);
 
-    exit(success ? EXIT_SUCCESS : EXIT_FAILURE);
+    exit(code);
 }

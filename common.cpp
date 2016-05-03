@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include "common.h"
 
-extern void die(bool, const char *);
+extern void die(int, const char *);
 
 void fail_aux(const char *line_text, int line_number, const char *file_name, const char *emsg)
 {
