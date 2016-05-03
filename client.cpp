@@ -84,8 +84,9 @@ void set_up()
 void handle_stdin()
 {
     short length, net_length;
-    fgets(stdin_buffer, MAX_MESSAGE_LENGTH, stdin); //message.data i 0-ended
+    fgets(stdin_buffer, MAX_MESSAGE_LENGTH+1, stdin); //message.data i 0-ended
     length = (short) strlen(stdin_buffer);
+    printf("message length: %d\n", length);
     net_length = htons((uint16_t) length);
     safe_all_write(descriptors[0].fd, (char *) &net_length, sizeof(short)); //all writes end quickly!
     safe_all_write(descriptors[0].fd, stdin_buffer, (size_t) length);
