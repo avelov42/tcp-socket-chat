@@ -180,7 +180,8 @@ void die(int code, const char *reason)
     static bool been_here = false;
     if(been_here) fatal("OS failure");
     been_here = true;
-    printf("Client is turning off: %s\n", code == 0 ? "successfully" : reason);
+    if(code != 0) //client cannot output nothing else than messages
+        printf("Client is turning off: %s\n", reason);
 
     if(server_port_str != NULL)
         free(server_port_str);

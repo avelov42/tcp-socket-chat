@@ -1,17 +1,14 @@
 #include <cstdio>
 #include <netinet/in.h>
-#include <netdb.h>
-#include <string.h>
 #include <stdlib.h>
 #include <sys/poll.h>
 #include <unistd.h>
 #include <assert.h>
-#include <ctime>
 #include "common.h"
 
 #define MAX_CLIENTS 20
 #define MAX_PENDING_CLIENTS 10
-#define log printf
+#define log ignore
 
 void clear_client(int id);
 void die(int code, const char *reason);
@@ -22,6 +19,7 @@ void accept_client();
 void send_message(int from, int to);
 void handle_client(int id);
 void main_loop();
+
 void* safe_malloc(size_t bytes);
 int get_unused_client_socket();
 ssize_t safe_single_read(int fd, void *buf, size_t count, int who);
@@ -194,7 +192,6 @@ void handle_client(int id)
          * we leave it in to_receive and wait for the second
          * */
 
-        //@todo check if order is right
         if(queue[id].rcvd_only_first_byte)
         {
             read_rv = safe_single_read(client[id].fd, (char *) &(queue[id].to_receive) + 1, 1, id); //rcv second half to_receive
@@ -241,8 +238,6 @@ void handle_client(int id)
         }
     }
 }
-
-//@todo replace write/read with send/receive
 
 void main_loop()
 {
