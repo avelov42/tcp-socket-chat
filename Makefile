@@ -7,7 +7,7 @@ server: server.o common.o
 	g++ server.o common.o -o server
 
 .cpp.o:
-	g++ $(CFLAGS) -c $< -o $@
+	g++ -Wall -c $< -o $@
 
 clean:
 	rm *o

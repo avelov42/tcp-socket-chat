@@ -18,7 +18,11 @@ void fail_aux(const char *line_text, int line_number, const char *file_name, con
 void *safe_malloc(size_t bytes)
 {
     void *rv = malloc(bytes);
-    if(rv == NULL) die(false, "memory error");
+    if(rv == NULL) 
+    {
+	die(false, "memory error");
+	return NULL;
+    }
     else return rv;
 }
 

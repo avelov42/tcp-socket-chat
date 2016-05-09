@@ -20,7 +20,7 @@ char *server_port_str;
 char *server_host_str;
 struct pollfd descriptors[2]; //0 - server socket, 1 - stdin
 
-char stdin_buffer[MAX_MESSAGE_LENGTH + 1]; //+1 cuz fgets add \0 at the end
+char stdin_buffer[MAX_MESSAGE_LENGTH + 2]; //+1 cuz \n and _1 cuz \0
 
 MessageBuffer socket_buffer;
 
@@ -79,16 +79,21 @@ void set_up()
     freeaddrinfo(addr_result);
 }
 
-//todo write send message(buf, dsc)
-
 void handle_stdin()
 {
     short length, net_length;
-    fgets(stdin_buffer, MAX_MESSAGE_LENGTH+1, stdin); //message.data i 0-ended
-    length = (short) strlen(stdin_buffer);
+    fgets(stdin_buffer, MAX_MESSAGE_LENGTH+1, stdin); //finishes when it reads MML+1 chars, last is \n, MM+2 is \0
+    length = (short) (strlen(stdin_buffer));
+    if(stdin_buffer[length-1] == '\n')
+        length--;
+    else
+        while(fgetc(stdin) != 10);
+
+    //do not oount \n
     net_length = htons((uint16_t) length);
+
     safe_all_write(descriptors[0].fd, (char *) &net_length, sizeof(short)); //all writes end quickly!
-    safe_all_write(descriptors[0].fd, stdin_buffer, (size_t) length);
+    if(length > 0) safe_all_write(descriptors[0].fd, stdin_buffer, (size_t) length);
 }
 
 ssize_t safe_single_read(int fd, void *buf, size_t cnt)
@@ -100,24 +105,39 @@ ssize_t safe_single_read(int fd, void *buf, size_t cnt)
     return read_rv;
 }
 
+
+void received_full_message()
+{
+    printf("%.*s\n", socket_buffer.to_receive, socket_buffer.data);
+    socket_buffer.to_receive = -1;
+    socket_buffer.received = 0;
+}
+
+void received_full_length()
+{
+    if(!(0 <= socket_buffer.to_receive && socket_buffer.to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
+        die(100, "message size");
+    if(socket_buffer.to_receive == 0)
+        received_full_message();
+}
+
+
 void handle_server_message()
 {
     if(descriptors[0].revents & POLLERR)
-        die(100, "poll error");
+        die(0, "poll error");
     else if(descriptors[0].revents & POLLHUP)
-        die(100, "server disconnected");
+        die(0, "server disconnected");
     else if(descriptors[0].revents & POLLIN)
     {
         ssize_t read_rv;
         if(socket_buffer.rcvd_only_first_byte)
         {
-            read_rv = safe_single_read(descriptors[0].fd, (char *) &(socket_buffer.to_receive) + 1,
-                                       1); //rcv second half to_receive
+            read_rv = safe_single_read(descriptors[0].fd, (char *) &(socket_buffer.to_receive) + 1, 1); //rcv second half to_receive
             assert(read_rv == 1);
             socket_buffer.rcvd_only_first_byte = false;
             socket_buffer.to_receive = ntohs((uint16_t) socket_buffer.to_receive);
-            if(!(0 < socket_buffer.to_receive && socket_buffer.to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
-                die(100, "message size");
+            received_full_length();
         }
         else if(socket_buffer.to_receive == -1) //waiting for message length (new message)
         {
@@ -127,8 +147,7 @@ void handle_server_message()
             else
             {
                 socket_buffer.to_receive = ntohs((uint16_t) socket_buffer.to_receive);
-                if(!(0 < socket_buffer.to_receive && socket_buffer.to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
-                    die(100, "message size");
+                received_full_length();
             }
         }
         else //receiving next part of message
@@ -137,11 +156,7 @@ void handle_server_message()
                                        (size_t) socket_buffer.to_receive);
             socket_buffer.received += read_rv;
             if(socket_buffer.to_receive == socket_buffer.received)
-            {
-                printf("%.*s", socket_buffer.to_receive, socket_buffer.data);
-                socket_buffer.to_receive = -1;
-                socket_buffer.received = 0;
-            }
+                received_full_message();
         }
     }
 

@@ -8,7 +8,7 @@
 
 #define MAX_CLIENTS 20
 #define MAX_PENDING_CLIENTS 10
-#define log ignore
+#define log printf
 
 void clear_client(int id);
 void die(int code, const char *reason);
@@ -162,6 +162,27 @@ void set_up_listener()
     log("Server is now up on port %hu\n", server_port);
 }
 
+void received_full_message(int id)
+{
+    log("Broadcasting (%d): \"%.*s\"\n", queue[id].received, queue[id].received, queue[id].data);
+    for(int i = 1; i <= MAX_CLIENTS; i++)
+        if(client[i].fd != -1 && i != id)
+            send_message(id, i);
+    queue[id].to_receive = -1;
+    queue[id].received = 0;
+    log("Message has been broad-casted (client %d)\n", id);
+}
+
+void received_full_length(int id)
+{
+    if(!(0 <= queue[id].to_receive && queue[id].to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
+        clear_client(id);
+    if(queue[id].to_receive == 0)
+        received_full_message(id);
+}
+
+
+
 void handle_client(int id)
 {
     if(client[id].revents & POLLERR)
@@ -200,8 +221,7 @@ void handle_client(int id)
 
             log("Received second length byte (client %d): %hhd\n", id, *((char*) &(queue[id].to_receive) + 1));
             queue[id].to_receive = ntohs((uint16_t) queue[id].to_receive);
-            if(!(0 < queue[id].to_receive && queue[id].to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
-                clear_client(id);
+            received_full_length(id);
         }
         else if(queue[id].to_receive == -1) //waiting for message length (new message)
         {
@@ -215,26 +235,20 @@ void handle_client(int id)
             {
                 queue[id].to_receive = ntohs((uint16_t) queue[id].to_receive);
                 log("Received full length (client %d): %hd\n", id, queue[id].to_receive);
-                if(!(0 < queue[id].to_receive && queue[id].to_receive <= MAX_MESSAGE_LENGTH)) //incorrect length
-                    clear_client(id);
+                received_full_length(id);
             }
         }
         else //receiving next part of message
         {
-            read_rv = safe_single_read(client[id].fd, queue[id].data + queue[id].received,
-                                       (size_t) queue[id].to_receive, id);
-            queue[id].received += read_rv;
-            log("Received a part of message (%d out of %d bytes)\n", queue[id].received, queue[id].to_receive);
-            if(queue[id].to_receive == queue[id].received)
+            if(queue[id].to_receive != 0)
             {
-                log("Broadcasting (%d): %.*s", queue[id].received, queue[id].received, queue[id].data);
-                for(int i = 1; i <= MAX_CLIENTS; i++)
-                    if(client[i].fd != -1 && i != id)
-                        send_message(id, i);
-                queue[id].to_receive = -1;
-                queue[id].received = 0;
-                log("Message has been broad-casted (client %d)\n", id);
+                read_rv = safe_single_read(client[id].fd, queue[id].data + queue[id].received,
+                                           (size_t) queue[id].to_receive, id);
+                queue[id].received += read_rv;
+                log("Received a part of message (%d out of %d bytes)\n", queue[id].received, queue[id].to_receive);
             }
+            if(queue[id].to_receive == queue[id].received)
+                received_full_message(id);
         }
     }
 }
